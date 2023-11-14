@@ -17,7 +17,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"time"
-
+	"regexp"
+	"strconv"
+	"github.com/relvacode/iso8601"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus-community/json_exporter/config"
@@ -170,6 +172,24 @@ func timestampMetric(logger log.Logger, m JSONMetric, data []byte, pm prometheus
 		level.Error(logger).Log("msg", "Failed to extract timestamp for metric", "path", m.KeyJSONPath, "err", err, "metric", m.Desc)
 		return pm
 	}
+
+	// Test Timestamp for ISO8601
+	fndTimeType, err := regexp.MatchString(`(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\\.\d+)|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d)|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d)`,ts)
+	if err != nil {
+		level.Error(logger).Log("msg", "Failed to parse regex for timestamp type detection", "path", m.KeyJSONPath, "err", err, "metric", m.Desc)
+		return pm
+	}
+	if (fndTimeType) {
+		// Parse ISO time to Epoch
+		isoTime, err := iso8601.ParseString(ts)
+		if err != nil {
+			level.Error(logger).Log("msg", "Failed to convert timestamp to Epoch for metric", "path", m.KeyJSONPath, "err", err, "metric", m.Desc)
+			return pm
+		}
+		// Convert ISO time to Epoch and convert int64 variable into String to pass below.
+		ts = strconv.FormatInt(isoTime.UnixMilli(), 10)
+	}
+
 	epochTime, err := SanitizeIntValue(ts)
 	if err != nil {
 		level.Error(logger).Log("msg", "Failed to parse timestamp for metric", "path", m.KeyJSONPath, "err", err, "metric", m.Desc)
